@@ -1,6 +1,7 @@
 import os
 import time
 from ioh import get_problem
+import ioh
 
 
 class MyIOHFormatOnEveryEvaluationLogger:
@@ -70,9 +71,12 @@ class MyObjectiveFunctionWrapper:
             iohf = get_problem(fid, dimension=dim, instance=iid, problem_type = 'Real')
             self.func_name = iohf.meta_data.name
         elif directed_by == 'IOH':
-            self.my_function = get_problem(fid, dimension=dim, instance=iid, problem_type = 'Real')
-            self.func_name = self.my_function.meta_data.name
-            self.optimum = self.my_function.objective.y
+            self.my_function = get_problem(fid, dimension=dim, 
+                                           instance=iid, 
+                                           problem_class= ioh.ProblemClass.REAL)
+            
+            self.func_name = self.my_function.meta_data.n_variables
+            self.optimum = self.my_function.optimum.y
         else:
             raise ValueError('Unknown way to create function using', directed_by)
         self.cnt_eval = 0
