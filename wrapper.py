@@ -29,8 +29,15 @@ class Py_CMA_ES_Wrapper:
         argmax = None
         for i in range(10*self.dim):
             x = space.sample(1)[0]
-        cma.fmin(self.func, x, 1., options={'bounds': [
-                 [self.lb]*self.dim, [self.ub]*self.dim], 'maxfevals': self.total_budget, 'seed': self.random_seed})
+        def generate_initial_point():
+            return np.random.uniform(low=self.lb, high=self.ub, size = self.dim)
+
+        cma.fmin2(self.func, generate_initial_point, 1., restarts=5,options={'bounds': [
+
+                 [self.lb]*self.dim, [self.ub]*self.dim], 'maxfevals': self.total_budget, 'seed': self.random_seed, 'tolx': 1e-8})
+
+
+    
 
         def get_acq_time(self):
             return self.opt.acq_opt_time
