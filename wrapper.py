@@ -853,6 +853,52 @@ class HEBOWrapper:
     def get_iter_time(self):
         return self.opt.cum_iteration_time
 
+import torch
+import os
+import sys
+from botorch.models import SingleTaskGP
+from botorch.fit import fit_gpytorch_mll
+from botorch.acquisition import LogExpectedImprovement
+from botorch.optim.optimize import optimize_acqf
+from botorch.sampling import SobolQMCNormalSampler
+from gpytorch.mlls import ExactMarginalLogLikelihood
+from botorch.models.transforms import Normalize, Standardize
+class BO_botorchWrapper:
+    def __init__(self, func, dim, ub, lb, total_budget, DoE_size, random_seed):
+        self.func = func
+        self.dim = dim
+        self.lb = torch.tensor([lb] * dim, dtype=torch.float32)
+        self.ub = torch.tensor([ub] * dim, dtype=torch.float32)
+        bounds = torch.stack([self.lb, self.ub])
+        self.total_budget = total_budget
+        self.DoE_size = DoE_size
+        self.random_seed = random_seed
+        torch.manual_seed(random_seed)
+    def run(self):
+        self.X = self.lb + (self.ub - self.lb) * torch.rand((self.DoE_size, self.dim))
+        results = [[self.func(x.tolist())] for x in self.X]
+        self.Y = torch.tensor(results, dtype=torch.float32).view(-1, 1)
+
+        for i in range(self.total_budget - self.DoE_size):
+            self.model = SingleTaskGP(self.X, self.Y, input_transform=Normalize(d=self.dim),
+            outcome_transform=Standardize(m=1),)
+            self.mll = ExactMarginalLogLikelihood(self.model.likelihood, self.model)
+            fit_gpytorch_mll(self.mll)
+
+            EI = LogExpectedImprovement(self.model, best_f=self.Y.max())
+            bounds = torch.stack([self.lb, self.ub]).unsqueeze(1) if self.dim == 1 else torch.stack([self.lb, self.ub])
+            candidate, _ = optimize_acqf(
+                EI,
+                bounds=bounds,
+                q=1,
+                num_restarts=5,
+                raw_samples=20,
+            )
+
+            new_y = torch.tensor([[self.func(candidate.tolist()[0])]])
+
+            self.X = torch.cat([self.X, candidate])
+            self.Y = torch.cat([self.Y, new_y])
 
 
 def wrapopt(optimizer_name, func, ml_dim, ml_total_budget, ml_DoE_size, random_seed):
@@ -903,6 +949,9 @@ def wrapopt(optimizer_name, func, ml_dim, ml_total_budget, ml_DoE_size, random_s
                              random_seed=random_seed)
     if optimizer_name == 'HEBO':
         return HEBOWrapper(func=func, dim=ml_dim, ub=ub, lb=lb, total_budget=ml_total_budget, DoE_size=ml_DoE_size,
+                             random_seed=random_seed)
+    if optimizer_name == 'BO_botorch':
+        return BO_botorchWrapper(func=func, dim=ml_dim, ub=ub, lb=lb, total_budget=ml_total_budget, DoE_size=ml_DoE_size,
                              random_seed=random_seed)
 
 if __name__ == "__main__":
