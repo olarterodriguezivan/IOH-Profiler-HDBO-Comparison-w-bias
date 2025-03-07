@@ -885,7 +885,7 @@ class BO_botorchWrapper:
             self.mll = ExactMarginalLogLikelihood(self.model.likelihood, self.model)
             fit_gpytorch_mll(self.mll)
 
-            EI = LogExpectedImprovement(self.model, best_f=self.Y.max())
+            EI = LogExpectedImprovement(self.model, best_f=self.Y.max(), maximize=False)
             bounds = torch.stack([self.lb, self.ub]).unsqueeze(1) if self.dim == 1 else torch.stack([self.lb, self.ub])
             candidate, _ = optimize_acqf(
                 EI,
