@@ -42,6 +42,7 @@ class TurboM(Turbo1):
     min_cuda : We use float64 on the CPU if we have this or fewer datapoints
     device : Device to use for GP fitting ("cpu" or "cuda")
     dtype : Dtype to use for GP fitting ("float32" or "float64")
+    sample_zero: switch to sample the zero vector from DoE
 
     Example usage:
         turbo5 = TurboM(f=f, lb=lb, ub=ub, n_init=n_init, max_evals=max_evals, n_trust_regions=5)
@@ -65,6 +66,7 @@ class TurboM(Turbo1):
         min_cuda=1024,
         device="cpu",
         dtype="float64",
+        sample_zero=False
     ):
         self.n_trust_regions = n_trust_regions
         self.acq_opt_time = 0
@@ -84,6 +86,7 @@ class TurboM(Turbo1):
             min_cuda=min_cuda,
             device=device,
             dtype=dtype,
+            sample_zero=sample_zero
         )
 
         self.succtol = 3
@@ -149,6 +152,11 @@ class TurboM(Turbo1):
         # Create initial points for each TR
         for i in range(self.n_trust_regions):
             X_init = latin_hypercube(self.n_init, self.dim)
+
+            # Sample the zero vector as part of the DoE
+            if self.sample_zero:
+                X_init[0,:] = np.ones_like(X_init[0,:])*0.5
+
             X_init = from_unit_cube(X_init, self.lb, self.ub)
             fX_init = np.array([[self.f(x)] for x in X_init])
 
@@ -239,6 +247,10 @@ class TurboM(Turbo1):
 
                     # Create a new initial design
                     X_init = latin_hypercube(self.n_init, self.dim)
+
+                    if self.sample_zero:
+                        X_init[0,:] = np.ones_like(X_init[0,:])*0.5
+                        
                     X_init = from_unit_cube(X_init, self.lb, self.ub)
                     fX_init = np.array([[self.f(x)] for x in X_init])
 

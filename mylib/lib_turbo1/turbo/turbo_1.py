@@ -22,6 +22,7 @@ from torch.quasirandom import SobolEngine
 from .gp import train_gp
 from .utils import from_unit_cube, latin_hypercube, to_unit_cube
 
+from typing import Union, Optional
 
 class Turbo1:
     """The TuRBO-1 algorithm.
@@ -41,6 +42,7 @@ class Turbo1:
     min_cuda : We use float64 on the CPU if we have this or fewer datapoints
     device : Device to use for GP fitting ("cpu" or "cuda")
     dtype : Dtype to use for GP fitting ("float32" or "float64")
+    sample_zero: switch to sample the zero vector from DoE
 
     Example usage:
         turbo1 = Turbo1(f=f, lb=lb, ub=ub, n_init=n_init, max_evals=max_evals)
@@ -63,6 +65,7 @@ class Turbo1:
         min_cuda=1024,
         device="cpu",
         dtype="float64",
+        sample_zero:Optional[bool] = False
     ):
 
         # Very basic input checks
@@ -78,6 +81,7 @@ class Turbo1:
         assert max_evals > n_init and max_evals > batch_size
         assert device == "cpu" or device == "cuda"
         assert dtype == "float32" or dtype == "float64"
+        assert isinstance(sample_zero,bool) or sample_zero in [0,1]
         if device == "cuda":
             assert torch.cuda.is_available(), "can't use cuda if it's not available"
 
@@ -95,6 +99,7 @@ class Turbo1:
         self.use_ard = use_ard
         self.max_cholesky_size = max_cholesky_size
         self.n_training_steps = n_training_steps
+        self.sample_zero = bool(sample_zero)
 
         # Hyperparameters
         self.mean = np.zeros((0, 1))
@@ -251,6 +256,11 @@ class Turbo1:
 
             # Generate and evalute initial design points
             X_init = latin_hypercube(self.n_init, self.dim)
+
+            # Bypass if sample zero handle is active
+            if self.sample_zero:
+                X_init[0,:] = np.ones_like(X_init[0,:])*0.5
+
             X_init = from_unit_cube(X_init, self.lb, self.ub)
             fX_init = np.array([[self.f(x)] for x in X_init])
 
