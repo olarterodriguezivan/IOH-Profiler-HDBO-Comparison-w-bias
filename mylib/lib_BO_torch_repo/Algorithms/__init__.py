@@ -1,0 +1,6 @@
+from .BayesianOptimization.Vanilla_BO.Vanilla_BO import Vanilla_BO
+from .BayesianOptimization.Vanilla_BO.Vanilla_BO_Combinatorial import Vanilla_BO_Combinatorial
+#from .CMA_ES_Wrappers.Pure_CMA_ES import Pure_CMA_ES
+#from .CMA_ES_Wrappers.Pure_CMA_ES_Tabu import Pure_CMA_ES_Tabu
+#from .CMA_ES_Wrappers.Special_Injection_CMA_ES import SpecialInjectionCMA_ES
+#from .CMA_ES_Wrappers.Rejection_Sampling_CMA_ES import RejectionSamplingCMA_ES
