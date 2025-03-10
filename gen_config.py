@@ -4,25 +4,47 @@ import json
 import datetime
 import subprocess
 
+# #SBATCH --clusters=serial
 class ExperimentEnvironment:
     SLURM_SCRIPT_TEMPLATE = '''#!/bin/bash
 
 #SBATCH --job-name=##folder##
 #SBATCH --array=0-##jobs_count##
-#SBATCH --clusters=serial
-#SBATCH --partition=serial_std
-#SBATCH --mem=2048MB
-#SBATCH --time=96:00:00
-#SBATCH --mail-user=your_email@domain.com
+#SBATCH --partition=gpu-medium
+#SBATCH --mem=4096MB
+#SBATCH --time=48:00:00
+#SBATCH --mail-user=olarterodriguezi@vuw.leidenuniv.nl
 #SBATCH --mail-type=END,FAIL
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --output=##logs_out##
 #SBATCH --error=##logs_err##
 
+
+#// LOAD PYTHON
+module load Python/3.10.4-GCCcore-11.3.0
+
+#// ACTIVATE MODULE
+source $HOME/BO_torch/bo-torch-run/bin/activate
+
 num=##from_number##
 FILE_ID=$((${SLURM_ARRAY_TASK_ID}+$num))
-python ../run_experiment.py configs/*${FILE_ID}.json
+
+# Define the directory containing the config files
+CONFIG_DIR="##folder_name_configs##"
+
+# Find the file where NumExp-% matches TASK_ID
+CONFIG_FILE=$(find "$CONFIG_DIR" -type f -name "*.json" | grep "NumExp-${FILE_ID}\.json")
+
+# Check if a config file was found
+if [ -z "$CONFIG_FILE" ]; then
+    echo "Error: No matching config file found for NumExp-${FILE_ID}!"
+    exit 1
+fi
+
+echo $CONFIG_FILE
+
+python3 ../run_experiment.py $CONFIG_FILE
 '''
 
     def __init__(self):
@@ -32,7 +54,7 @@ python ../run_experiment.py configs/*${FILE_ID}.json
         os.makedirs(folder_name, exist_ok=False)
         print(f'Experiment root is: {folder_name}')
         self.experiment_root = os.path.abspath(folder_name)
-        self.__max_array_size = 100
+        self.__max_array_size = 1000
         self.__number_of_slurm_scripts = 0
 
     def set_up_by_experiment_config_file(self, experiment_config_file_name):
@@ -52,9 +74,11 @@ python ../run_experiment.py configs/*${FILE_ID}.json
         script = script\
                 .replace('##folder##', self.result_folder_prefix)\
                 .replace('##logs_out##', logs_out)\
-                .replace('##logs_err##', logs_err)
+                .replace('##logs_err##', logs_err)\
+                .replace('##folder_name_configs##', 
+                         os.path.join(self.experiment_root,"configs"))
         offset = 0
-        for i in range(self.generated_configs // self.__max_array_size):
+        for _ in range(self.generated_configs // self.__max_array_size):
             with open(os.path.join(self.experiment_root, f'slurm{self.__number_of_slurm_scripts}.sh'), 'w') as f:
                 f.write(script\
                         .replace('##from_number##', str(offset))\
@@ -78,6 +102,8 @@ python ../run_experiment.py configs/*${FILE_ID}.json
         iids = config['iids']
         dims = config['dims']
         reps = config['reps']
+        logger_mode = config["logger"]
+        sample_zero = bool(config["sample_zero"])
         if 'extra' not in config.keys():
             config['extra'] = ''
         optimizers = config['optimizers']
@@ -103,6 +129,8 @@ python ../run_experiment.py configs/*${FILE_ID}.json
                                     'seed': rep,
                                     'lb': lb,
                                     'ub': ub,
+                                    'logger':logger_mode,
+                                    'sample_zero':int(sample_zero)
                                     }
                             cur_config_file_name = f'Opt-{my_optimizer_name}_F-{fid}_Id-{iid}_Dim-{dim}_Rep-{rep}_NumExp-{cur_config_number}.json'
                             with open(os.path.join(configs_dir, cur_config_file_name), 'w') as f:
